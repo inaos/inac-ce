@@ -7,7 +7,7 @@
 # license agreement you entered into with INAOS GmbH.
 #
 cmake_minimum_required(VERSION 3.7)
-project(inac VERSION 1.0.1)
+project(inac-ce VERSION 1.0.1)
 if(NOT EXISTS "${CMAKE_BINARY_DIR}/inac.cmake")
 	if (NOT EXISTS "${CMAKE_SOURCE_DIR}/inac.cmake")
 		message(STATUS "Downloading inac.cmake from https://github.com/inaos/inac-cmake")
