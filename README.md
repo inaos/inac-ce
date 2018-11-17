@@ -1,5 +1,4 @@
-[![Appveyor CI](https://ci.appveyor.com/api/projects/status/4ery3c4kj2td81og/branch/master?svg=true)](https://ci.appveyor.com/project/stoni/inac/branch/master) [![codecov](https://codecov.io/gh/inaos/inac/branch/master/graph/badge.svg?token=sEKLQQ2aeE)](https://codecov.io/gh/inaos/inac)
-
+[![Appveyor CI](https://ci.appveyor.com/api/projects/status/hmckeo70xpa3g5gr?svg=true)](https://ci.appveyor.com/project/stoni/inac-ce/branch/master) 
 # INAOS Common C Library
 
 The INAOS Common C Library is a collection of header files and library routines 
