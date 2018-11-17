@@ -136,7 +136,7 @@ after_build:
         cpack
   - cmd: |
          cpack
-s
+
 artifacts:
   - path: cmake-build-*/*.zip
     name: INAC
@@ -164,4 +164,3 @@ deploy_script:
           $ret = /usr/bin/curl "-u${user}:${pwd}" "-T" $src $url 2>1
         }
         $LastExitCode = 0
-  
