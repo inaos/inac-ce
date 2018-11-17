@@ -124,12 +124,12 @@ build_script:
   - sh: |
         mkdir cmake-build-$BUILD_CONFIGURATION
         cd cmake-build-$BUILD_CONFIGURATION
-        cmake -G "Unix Makefiles" ../ -DCMAKE_BUILD_TYPE=$BUILD_CONFIGURATION -DINAC_COVERAGE_ENABLED=1 $snapshot
+        cmake -G "Unix Makefiles" ../ -DCMAKE_BUILD_TYPE=$BUILD_CONFIGURATION $snapshot
         make
   - cmd: |
          mkdir cmake-build-%BUILD_CONFIGURATION%
          cd cmake-build-%BUILD_CONFIGURATION%
-         cmake -G "NMake Makefiles" ../ -DCMAKE_BUILD_TYPE=%BUILD_CONFIGURATION% -DINAC_TARGET_ARCH=%BUILD_ARCH% -DINAC_COVERAGE_ENABLED=1 %snapshot%
+         cmake -G "NMake Makefiles" ../ -DCMAKE_BUILD_TYPE=%BUILD_CONFIGURATION% -DINAC_TARGET_ARCH=%BUILD_ARCH%  %snapshot%
          nmake
 after_build:
   - sh: |
