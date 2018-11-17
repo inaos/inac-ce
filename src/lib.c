@@ -44,10 +44,6 @@ static ina_rc_t __ina_free_lopt(void *data);
 
 /* function pointer to a custom cleanup routine */
 static ina_cleanup_handler_t  __cleanup = NULL;
-/* short command line options */
-static ina_hashtable_t *__sopt = NULL;
-/* long command line options */
-static ina_hashtable_t *__lopt = NULL;
 /* that's our program name */
 static ina_str_t __appname = NULL;
 /* That's our app path */
@@ -114,7 +110,7 @@ INA_API(ina_rc_t) ina_app_init(int argc, char** argv, ina_opt_t *opt)
     }
 
     if (opt != NULL) {
-        ina_hashtable_iter_t *iter;
+        /*ina_hashtable_iter_t *iter;
         INA_MUST_SUCCEED(ina_hashtable_new(INA_HASHTABLE_STR_KEY,
                           INA_HASH_DEFAULT,
                           INA_HASHTABLE_TYPE_DEFAULT,
@@ -128,7 +124,7 @@ INA_API(ina_rc_t) ina_app_init(int argc, char** argv, ina_opt_t *opt)
                           INA_HASHTABLE_GROW_DEFAULT,
                           INA_HASHTABLE_SHRINK_DEFAULT,
                           INA_HASHTABLE_DEFAULT_CAPACITY,
-                          INA_HASHTABLE_CF_DEFAULT, &__lopt));
+                          INA_HASHTABLE_CF_DEFAULT, &__lopt));*/
 
         while (opt->long_opt) {
             __ina_lopt_t *lo;
@@ -145,7 +141,7 @@ INA_API(ina_rc_t) ina_app_init(int argc, char** argv, ina_opt_t *opt)
             so->type = opt->type;
             
             if (strlen(so->opt)) {
-                ina_hashtable_set_str(__sopt, so->opt, so);
+                /*ina_hashtable_set_str(__sopt, so->opt, so);*/
             }
 
             lo = (__ina_lopt_t*)ina_mem_alloc(sizeof(__ina_lopt_t));
@@ -154,7 +150,7 @@ INA_API(ina_rc_t) ina_app_init(int argc, char** argv, ina_opt_t *opt)
             }
             lo->opt = ina_str_new_fromcstr(opt->long_opt);
             lo->short_opt = so;
-            ina_hashtable_set_str(__lopt, lo->opt, lo);
+            /*ina_hashtable_set_str(__lopt, lo->opt, lo);*/
             opt++;
         }
         
@@ -227,7 +223,7 @@ INA_API(ina_rc_t) ina_app_init(int argc, char** argv, ina_opt_t *opt)
             
             /* Validate, any options must have a value except flags */
 			__ina_sopt_t *so = NULL;
-            ina_hashtable_iter_new(__sopt, &iter);
+            /*ina_hashtable_iter_new(__sopt, &iter);
             while (INA_SUCCEED(ina_hashtable_iter_next(iter, (void**)&so))) {
                 if (so->type != INA_OPT_TYPE_FLAG && so->value == NULL) {
                     ina_hashtable_iter_free(&iter);
@@ -235,7 +231,7 @@ INA_API(ina_rc_t) ina_app_init(int argc, char** argv, ina_opt_t *opt)
                     return INA_ERROR(INA_ES_OPTION | INA_ERR_INVALID);
                 }
             }
-            ina_hashtable_iter_free(&iter);
+            ina_hashtable_iter_free(&iter);*/
         }
     }
     return INA_SUCCESS;
@@ -280,12 +276,6 @@ INA_API(ina_rc_t) ina_init(void)
     SetUnhandledExceptionFilter(__ina_windows_exception_handler);
 #endif
 
-    /* initailize hashtable */
-    INA_RETURN_IF_FAILED(ina_hashtable_init("hashtable.conf"));
-
-    /* initailized console */
-    INA_RETURN_IF_FAILED(ina_cio_init());
-
 
 #ifdef INA_OS_WIN32
     /* Make sure to use high-accuracy multimedia-timers for windows */
@@ -296,9 +286,6 @@ INA_API(ina_rc_t) ina_init(void)
         return INA_OS_ERROR(INA_ES_OPERATION|INA_ERR_FAILED);
     }
 #endif
-
-    /* initialize CPU module */
-    INA_RETURN_IF_FAILED(ina_cpu_init());
 
     return INA_SUCCESS;
 }
@@ -312,19 +299,6 @@ INA_API(void) ina_exit(void)
         __cleanup(0, 0);
     }
 
-    /* Reset CIO attributes */
-    ina_cio_reset();
-
-    /* destroy cpu module */
-    ina_cpu_destroy();
-
-    /* free allocated memory  */
-    if (__lopt != NULL) {
-        ina_hashtable_foreach(__sopt, __ina_free_sopt);
-    }
-    if (__sopt != NULL) {
-        ina_hashtable_foreach(__lopt, __ina_free_lopt);
-    }
     if (__appname != NULL) {
         ina_str_free(__appname);
     }
@@ -332,8 +306,6 @@ INA_API(void) ina_exit(void)
         ina_str_free(__apppath);
     }
 
-    ina_hashtable_destroy();
-    ina_log_destroy();
     ina_err_destroy();
 
 #ifdef INA_OS_WIN32
@@ -379,7 +351,7 @@ INA_API(ina_rc_t) ina_opt_get_key_value(int index,  ina_str_t *key,
                                          ina_str_t *value)
 {
     __ina_lopt_t *lo = NULL;
-    ina_hashtable_iter_t *iter;
+    /*ina_hashtable_iter_t *iter;*/
 
     INA_VERIFY_NOT_NULL(key);
     INA_VERIFY_NOT_NULL(value);
@@ -388,11 +360,11 @@ INA_API(ina_rc_t) ina_opt_get_key_value(int index,  ina_str_t *key,
     *key = NULL;
     *value = NULL;
 
-    ina_hashtable_iter_new(__lopt, &iter);
+    /*ina_hashtable_iter_new(__lopt, &iter);
     while (INA_SUCCEED(ina_hashtable_iter_next(iter, (void**)&lo)) && index > 0) {
         --index;
     }
-    ina_hashtable_iter_free(&iter);
+    ina_hashtable_iter_free(&iter);*/
 
     if (lo == NULL) {
         return INA_ERROR(INA_ES_OPTION | INA_ERR_NOT_EXISTS);
@@ -453,25 +425,25 @@ __ina_opt_get(const char *opt)
 
     INA_ASSERT_NOT_NULL(opt);
 
-    if (INA_FAILED(ina_hashtable_get_str(__sopt, opt, (void**)&so))) {
+    /*if (INA_FAILED(ina_hashtable_get_str(__sopt, opt, (void**)&so))) {
         __ina_lopt_t *lo = NULL;
         if (INA_SUCCEED(ina_hashtable_get_str(__lopt, opt, (void**)&lo))) {
             so = lo->short_opt;
         }
-    }
+    }*/
     return so;
 }
 
 static void 
 __ina_opt_usage(void)
 {
-    ina_hashtable_iter_t *iter;
+    /*ina_hashtable_iter_t *iter;*/
     __ina_lopt_t *lo = NULL;
     __ina_sopt_t *so = NULL;
 
     printf("USAGE: %s ", ina_str_cstr(__appname));
 
-    ina_hashtable_iter_new(__lopt, &iter);
+    /*ina_hashtable_iter_new(__lopt, &iter);
     while (INA_SUCCEED(ina_hashtable_iter_next(iter, (void**)&lo))) {
         so = lo->short_opt;
         if (strlen(so->opt) > 0) {
@@ -487,9 +459,9 @@ __ina_opt_usage(void)
                 printf("%s", "INT] ");
             }
         }
-    }
+    }*/
     printf("%s", "\n\n");
-    ina_hashtable_iter_reset(iter);
+    /*ina_hashtable_iter_reset(iter);
 
     while (INA_SUCCEED(ina_hashtable_iter_next(iter, (void**)&lo))) {
         so = lo->short_opt;
@@ -502,7 +474,7 @@ __ina_opt_usage(void)
                 ina_str_cstr(lo->opt), 
                 ina_str_cstr(so->desc));           
         }
-    }
+    }*/
 }
 
 static ina_rc_t 
