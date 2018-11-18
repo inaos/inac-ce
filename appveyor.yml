@@ -105,20 +105,7 @@ matrix:
 
 init:
   - cmd: C:\"Program Files (x86)"\"%VSINSTALL%"\vcvarsall.bat %MSVC_PLATFORM%
-  
-cache:
-  - C:\ProgramData\chocolatey\lib -> appveyor.yml # on Ubuntu builds this path will not be found
-  - /var/cache/apt/archives/inaos-dev-quality-tools_1.0-1.deb # on VS builds this path will not be found
 
-install:
-  - sh:  |
-         sudo sh -c "echo 'deb https://appveyor:N9z6j8yVukyeLcfE@inaos.jfrog.io/inaos/debian-local xenial main' >> /etc/apt/sources.list"
-         sudo wget --http-user=$jfrog_artifactory_uid --http-password=$jfrog_artifactory_pwd -O - https://inaos.jfrog.io/inaos/api/gpg/key/public | sudo apt-key add -
-         sudo apt-get update
-         sudo apt-get install inaos-dev-quality-tools
-  - cmd: |
-         choco source add -n "inaos" -s "https://inaos.jfrog.io/inaos/api/nuget/nuget-release-local/" -u %jfrog_artifactory_uid% -p %jfrog_artifactory_pwd%
-         choco install inaos-dev-quality-tools -y --force
 
 build_script:
   - sh: |
