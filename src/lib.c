@@ -18,12 +18,14 @@ typedef struct __ina_sopt_s {
     ina_str_t value;
     ina_str_t desc;
     ina_opt_type_t type;
+    ina_list_node_t node;
 } __ina_sopt_t;
 
 /* Internal registry long option */
 typedef struct __ina_lopt_s {
     ina_str_t opt;
     __ina_sopt_t *short_opt;
+    ina_list_node_t node;
 } __ina_lopt_t;
 
 /* internal signal handler */
@@ -32,7 +34,7 @@ static void __ina_signal_handler(int);
 static void __ina_signal(int, void(*)(int));
 
 /* get command line option */
-static __ina_sopt_t *__ina_opt_get(const char*); 
+static __ina_sopt_t *__ina_opt_get(const char*);
 /* display usage */
 static void __ina_opt_usage(void);
 /* get absolute path */
@@ -44,6 +46,10 @@ static ina_rc_t __ina_free_lopt(void *data);
 
 /* function pointer to a custom cleanup routine */
 static ina_cleanup_handler_t  __cleanup = NULL;
+/* short command line options */
+static ina_list_t *__sopt = NULL;
+/* long command line options */
+static ina_list_t *__lopt = NULL;
 /* that's our program name */
 static ina_str_t __appname = NULL;
 /* That's our app path */
@@ -56,20 +62,43 @@ static LONG WINAPI __ina_windows_exception_handler(EXCEPTION_POINTERS *);
 
 /* Signal handler map */
 static ina_signal_handler_t __signal_handler_map[] = {
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL
 };
+
+static ina_rc_t __ina_check_options(void *data)
+{
+    __ina_sopt_t *so = (__ina_sopt_t*)data;
+    if (so->type != INA_OPT_TYPE_FLAG && so->value == NULL) {
+        INA_ERROR(INA_ES_OPTION | INA_ERR_INVALID);
+    }
+    return INA_SUCCESS;
+}
+
+static int __ina_find_sopt(const void *data, const void *find_arg)
+{
+    const __ina_sopt_t *d = (__ina_sopt_t*)data;
+    const char* name = (const char*)(find_arg);
+    return strcmp(d->opt, name);
+}
+
+static int __ina_find_lopt(const void *data, const void *find_arg)
+{
+    const __ina_lopt_t *d = (__ina_lopt_t*)data;
+    const char* name = (const char*)(find_arg);
+    return strcmp(d->opt, name);
+}
 
 INA_API(const char*) ina_app_get_name(void)
 {
@@ -83,7 +112,7 @@ INA_API(const char*) ina_app_get_path(void)
 
 INA_API(ina_rc_t) ina_app_init(int argc, char** argv, ina_opt_t *opt)
 {
-    
+
 #ifdef INA_OS_WIN32
     _set_abort_behavior(INA_DGBMSG_ASSERT, _WRITE_ABORT_MSG);
     __main_thread = GetCurrentThread();
@@ -110,26 +139,14 @@ INA_API(ina_rc_t) ina_app_init(int argc, char** argv, ina_opt_t *opt)
     }
 
     if (opt != NULL) {
-        /*ina_hashtable_iter_t *iter;
-        INA_MUST_SUCCEED(ina_hashtable_new(INA_HASHTABLE_STR_KEY,
-                          INA_HASH_DEFAULT,
-                          INA_HASHTABLE_TYPE_DEFAULT,
-                          INA_HASHTABLE_GROW_DEFAULT,
-                          INA_HASHTABLE_SHRINK_DEFAULT,
-                          INA_HASHTABLE_DEFAULT_CAPACITY,
-                          INA_HASHTABLE_CF_DEFAULT, &__sopt));
-        INA_MUST_SUCCEED(ina_hashtable_new(INA_HASHTABLE_STR_KEY,
-                          INA_HASH_DEFAULT,
-                          INA_HASHTABLE_TYPE_DEFAULT,
-                          INA_HASHTABLE_GROW_DEFAULT,
-                          INA_HASHTABLE_SHRINK_DEFAULT,
-                          INA_HASHTABLE_DEFAULT_CAPACITY,
-                          INA_HASHTABLE_CF_DEFAULT, &__lopt));*/
+        INA_MUST_SUCCEED(ina_list_new(INA_LIST_CF_NOMALLOC, &__sopt));
+        INA_MUST_SUCCEED(ina_list_new(INA_LIST_CF_NOMALLOC, &__lopt));
 
         while (opt->long_opt) {
             __ina_lopt_t *lo;
             __ina_sopt_t *so = (__ina_sopt_t*)ina_mem_alloc(sizeof(__ina_sopt_t));
-            ina_mem_set(so, 0, sizeof(__ina_sopt_t));
+            INA_MEM_SET_ZERO(so, __ina_sopt_t);
+            so->node.data = so;
             if (so == NULL) {
                 return ina_err_get_rc();
             }
@@ -139,21 +156,23 @@ INA_API(ina_rc_t) ina_app_init(int argc, char** argv, ina_opt_t *opt)
             }
             so->desc = ina_str_new_fromcstr(opt->desc);
             so->type = opt->type;
-            
+
             if (strlen(so->opt)) {
-                /*ina_hashtable_set_str(__sopt, so->opt, so);*/
+                ina_list_insert_tail(__sopt, &so->node);
             }
 
             lo = (__ina_lopt_t*)ina_mem_alloc(sizeof(__ina_lopt_t));
+            INA_MEM_SET_ZERO(lo, __ina_lopt_t);
             if (lo == NULL) {
                 return ina_err_get_rc();
             }
             lo->opt = ina_str_new_fromcstr(opt->long_opt);
             lo->short_opt = so;
-            /*ina_hashtable_set_str(__lopt, lo->opt, lo);*/
+            lo->node.data = lo;
+            ina_list_insert_tail(__lopt, &lo->node);
             opt++;
         }
-        
+
         /* Parse arguments, if any */
         if (argv != NULL) {
             int n;
@@ -162,7 +181,7 @@ INA_API(ina_rc_t) ina_app_init(int argc, char** argv, ina_opt_t *opt)
                 size_t s = 0;
                 size_t e = 0;
                 size_t vs = 0;
-                __ina_sopt_t *so = NULL; 
+                __ina_sopt_t *so = NULL;
                 while (argv[n][c]) {
                     switch (tolower(argv[n][c])) {
                         case '-': {
@@ -187,7 +206,7 @@ INA_API(ina_rc_t) ina_app_init(int argc, char** argv, ina_opt_t *opt)
                     }
                     c++;
                 }
-                
+
                 if (e == 0) {
                     e = c;
                 }
@@ -220,18 +239,12 @@ INA_API(ina_rc_t) ina_app_init(int argc, char** argv, ina_opt_t *opt)
                     }
                 }
             }
-            
+
             /* Validate, any options must have a value except flags */
-			__ina_sopt_t *so = NULL;
-            /*ina_hashtable_iter_new(__sopt, &iter);
-            while (INA_SUCCEED(ina_hashtable_iter_next(iter, (void**)&so))) {
-                if (so->type != INA_OPT_TYPE_FLAG && so->value == NULL) {
-                    ina_hashtable_iter_free(&iter);
-                    __ina_opt_usage();
-                    return INA_ERROR(INA_ES_OPTION | INA_ERR_INVALID);
-                }
+            if (INA_FAILED(ina_list_foreach(__sopt, __ina_check_options))) {
+                __ina_opt_usage();
+                return ina_err_get_rc();
             }
-            ina_hashtable_iter_free(&iter);*/
         }
     }
     return INA_SUCCESS;
@@ -243,11 +256,7 @@ INA_API(ina_rc_t) ina_init(void)
     WSADATA wsaData;
 #endif
 
-	static int __initialized = 0;
-	if (__initialized) {
-		return INA_SUCCESS;
-	}
-	__initialized = 1;
+    INA_INIT_GUARD();
 
     ina_err_init();
 
@@ -275,16 +284,32 @@ INA_API(ina_rc_t) ina_init(void)
     /* Set unhandled exception handler for windows */
     SetUnhandledExceptionFilter(__ina_windows_exception_handler);
 #endif
+    INA_RETURN_IF_FAILED(ina_mempool_init());
+
+#ifdef _LIBINAC_HASHTABLE_H_
+    /* initailize hashtable */
+    INA_RETURN_IF_FAILED(ina_hashtable_init("hashtable.conf"));
+#endif
+
+#ifdef _LIBINAC_CIO_H_
+    /* initailized console */
+    INA_RETURN_IF_FAILED(ina_cio_init());
+#endif
 
 
 #ifdef INA_OS_WIN32
     /* Make sure to use high-accuracy multimedia-timers for windows */
     timeBeginPeriod(1);
     /* Initialize winsock */
-    
+
     if (WSAStartup(MAKEWORD(2,2), &wsaData) != 0) {
         return INA_OS_ERROR(INA_ES_OPERATION|INA_ERR_FAILED);
     }
+#endif
+
+#ifdef _LIBINAC_CPU_H_
+    /* initialize CPU module */
+    INA_RETURN_IF_FAILED(ina_cpu_init());
 #endif
 
     return INA_SUCCESS;
@@ -299,6 +324,23 @@ INA_API(void) ina_exit(void)
         __cleanup(0, 0);
     }
 
+    /* Reset CIO attributes */
+#ifdef _LIBINAC_CIO_H_
+    ina_cio_reset();
+#endif
+
+#ifdef _LIBINAC_CPU_H_
+    /* destroy cpu module */
+    ina_cpu_destroy();
+#endif
+
+    /* free allocated memory  */
+    if (__lopt != NULL) {
+        ina_list_foreach(__sopt, __ina_free_sopt);
+    }
+    if (__sopt != NULL) {
+        ina_list_foreach(__lopt, __ina_free_lopt);
+    }
     if (__appname != NULL) {
         ina_str_free(__appname);
     }
@@ -306,6 +348,13 @@ INA_API(void) ina_exit(void)
         ina_str_free(__apppath);
     }
 
+#ifdef _LIBINAC_HASHTABLE_H_
+    ina_hashtable_destroy();
+#endif
+#ifdef _LIBINAC_LOG_H_
+    ina_log_destroy();
+#endif
+    ina_mempool_destroy();
     ina_err_destroy();
 
 #ifdef INA_OS_WIN32
@@ -315,24 +364,24 @@ INA_API(void) ina_exit(void)
 }
 
 INA_API(ina_cleanup_handler_t) ina_set_cleanup_handler(
-                                        ina_cleanup_handler_t handler)
+        ina_cleanup_handler_t handler)
 {
-    ina_cleanup_handler_t old;
+ina_cleanup_handler_t old;
 
-    old = __cleanup;
-    __cleanup = handler;
-    return old;
+old = __cleanup;
+__cleanup = handler;
+return old;
 }
 
-INA_API(ina_signal_handler_t) ina_register_signal_handler(ina_signal_t sig, 
-                                            ina_signal_handler_t handler)
+INA_API(ina_signal_handler_t) ina_register_signal_handler(ina_signal_t sig,
+ina_signal_handler_t handler)
 {
-    ina_signal_handler_t old = __signal_handler_map[sig];
-    __signal_handler_map[sig] = handler;
-    return old;   
+ina_signal_handler_t old = __signal_handler_map[sig];
+__signal_handler_map[sig] = handler;
+return old;
 }
 
-INA_API(ina_rc_t) ina_opt_isset(const char *opt) 
+INA_API(ina_rc_t) ina_opt_isset(const char *opt)
 {
     __ina_sopt_t *so;
     INA_VERIFY_NOT_NULL(opt);
@@ -347,11 +396,11 @@ INA_API(ina_rc_t) ina_opt_isset(const char *opt)
     return INA_SUCCESS;
 }
 
-INA_API(ina_rc_t) ina_opt_get_key_value(int index,  ina_str_t *key, 
-                                         ina_str_t *value)
+INA_API(ina_rc_t) ina_opt_get_key_value(int index,  ina_str_t *key,
+                                        ina_str_t *value)
 {
     __ina_lopt_t *lo = NULL;
-    /*ina_hashtable_iter_t *iter;*/
+    ina_list_node_t *next = NULL;
 
     INA_VERIFY_NOT_NULL(key);
     INA_VERIFY_NOT_NULL(value);
@@ -360,15 +409,16 @@ INA_API(ina_rc_t) ina_opt_get_key_value(int index,  ina_str_t *key,
     *key = NULL;
     *value = NULL;
 
-    /*ina_hashtable_iter_new(__lopt, &iter);
-    while (INA_SUCCEED(ina_hashtable_iter_next(iter, (void**)&lo)) && index > 0) {
-        --index;
+    if (INA_SUCCEED(ina_list_head(__sopt, &next))) {
+        while (next && index > 0) {
+            --index;
+            next = next->next;
+        }
     }
-    ina_hashtable_iter_free(&iter);*/
-
-    if (lo == NULL) {
+    if (index < 0) {
         return INA_ERROR(INA_ES_OPTION | INA_ERR_NOT_EXISTS);
     }
+    lo = (__ina_lopt_t*)next->data;
     *key = lo->opt;
     *value = lo->short_opt->value;
     return INA_SUCCESS;
@@ -419,65 +469,72 @@ INA_API(ina_rc_t) ina_opt_get_int(const char *opt, int *value)
 }
 
 static __ina_sopt_t *
-__ina_opt_get(const char *opt) 
+__ina_opt_get(const char *opt)
 {
-    __ina_sopt_t *so = NULL;
+    ina_list_node_t *node = NULL;
 
     INA_ASSERT_NOT_NULL(opt);
 
-    /*if (INA_FAILED(ina_hashtable_get_str(__sopt, opt, (void**)&so))) {
-        __ina_lopt_t *lo = NULL;
-        if (INA_SUCCEED(ina_hashtable_get_str(__lopt, opt, (void**)&lo))) {
-            so = lo->short_opt;
-        }
-    }*/
-    return so;
+    if (INA_SUCCEED(ina_list_find(__sopt, __ina_find_sopt, opt, &node))) {
+        return (__ina_sopt_t *) node->data;
+    }
+
+    if (INA_SUCCEED(ina_list_find(__lopt, __ina_find_lopt, opt, &node))) {
+        __ina_lopt_t *lo = (__ina_lopt_t*)node->data;
+        return lo->short_opt;
+    }
+    return NULL;
 }
 
-static void 
-__ina_opt_usage(void)
-{
-    /*ina_hashtable_iter_t *iter;*/
+static void
+__ina_opt_usage(void) {
+    ina_list_node_t *next;
     __ina_lopt_t *lo = NULL;
     __ina_sopt_t *so = NULL;
 
-    printf("USAGE: %s ", ina_str_cstr(__appname));
+    printf("USAGE: %s ", __appname);
 
-    /*ina_hashtable_iter_new(__lopt, &iter);
-    while (INA_SUCCEED(ina_hashtable_iter_next(iter, (void**)&lo))) {
-        so = lo->short_opt;
-        if (strlen(so->opt) > 0) {
-            printf(" -%s | --%s", ina_str_cstr(so->opt), ina_str_cstr(lo->opt));
-        } else {
-            printf(" --%s", ina_str_cstr(lo->opt));
-        }
-        if (so->type != INA_OPT_TYPE_FLAG) {
-            printf("%s", "= [");
-            if (so->type == INA_OPT_TYPE_STRING) {
-                printf("%s", "STRING] ");
+    if (INA_SUCCEED(ina_list_head(__lopt, &next))) {
+        while (next) {
+            lo = (__ina_lopt_t *) next->data;
+            so = lo->short_opt;
+            if (strlen(so->opt) > 0) {
+                printf(" -%s | --%s", ina_str_cstr(so->opt), ina_str_cstr(lo->opt));
             } else {
-                printf("%s", "INT] ");
+                printf(" --%s", ina_str_cstr(lo->opt));
+            }
+            if (so->type != INA_OPT_TYPE_FLAG) {
+                printf("%s", "= [");
+                if (so->type == INA_OPT_TYPE_STRING) {
+                    printf("%s", "STRING] ");
+                } else {
+                    printf("%s", "INT] ");
+                }
+            }
+            next = next->next;
+        }
+    }
+    printf("%s", "\n\n");
+
+    if (INA_SUCCEED(ina_list_head(__lopt, &next))) {
+        while (next) {
+            lo = (__ina_lopt_t *) next->data;
+            so = lo->short_opt;
+            if (strlen(so->opt) > 0) {
+                printf("   -%s | --%s , %s\n", ina_str_cstr(so->opt),
+                       ina_str_cstr(lo->opt),
+                       ina_str_cstr(so->desc));
+            } else {
+                printf("        --%s , %s\n",
+                       ina_str_cstr(lo->opt),
+                       ina_str_cstr(so->desc));
             }
         }
-    }*/
-    printf("%s", "\n\n");
-    /*ina_hashtable_iter_reset(iter);
-
-    while (INA_SUCCEED(ina_hashtable_iter_next(iter, (void**)&lo))) {
-        so = lo->short_opt;
-        if (strlen(so->opt) > 0) {
-            printf("   -%s | --%s , %s\n", ina_str_cstr(so->opt), 
-                ina_str_cstr(lo->opt), 
-                ina_str_cstr(so->desc));
-        } else {
-            printf("        --%s , %s\n",  
-                ina_str_cstr(lo->opt), 
-                ina_str_cstr(so->desc));           
-        }
-    }*/
+        next = next->next;
+    }
 }
 
-static ina_rc_t 
+static ina_rc_t
 __ina_get_binpath(ina_str_t path)
 {
 #ifndef INA_OS_WIN32
@@ -527,7 +584,7 @@ __ina_get_binpath(ina_str_t path)
     /* Ensure proper NUL termination */
     buf[ret] = 0;
 #endif
-    return INA_SUCCESS;   
+    return INA_SUCCESS;
 }
 
 static ina_rc_t
@@ -567,7 +624,7 @@ __ina_signal_handler(int sig)
     ina_signal_t isig;
     ina_signal_handler_t sh = NULL;
     ina_signal_behavior_t sb = INA_SIGNAL_BEHAVIOR_DFT;
-    
+
     if (signaled != 0) {
         return;
     }
@@ -576,7 +633,7 @@ __ina_signal_handler(int sig)
     switch (sig) {
         case SIGABRT:
             isig = INA_SIGNAL_ABRT;
-            break;        
+            break;
         case SIGFPE:
             isig = INA_SIGNAL_FPE;
             break;
@@ -604,7 +661,7 @@ __ina_signal_handler(int sig)
             break;
         case SIGKILL:
             isig = INA_SIGNAL_KILL;
-            break; 
+            break;
         case SIGTTOU:
             isig = INA_SIGNAL_TTOU;
             break;
@@ -630,7 +687,7 @@ __ina_signal_handler(int sig)
             if (sb != INA_SIGNAL_BEHAVIOR_IGNORE) {
                 exit(EXIT_FAILURE);
             }
-            break;        
+            break;
         case SIGFPE:
         case SIGILL:
         case SIGSEGV:

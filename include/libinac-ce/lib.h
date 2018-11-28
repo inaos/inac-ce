@@ -61,6 +61,7 @@ extern "C" {
 #include <libinac-ce/memory.h>
 #include <libinac-ce/mempool.h>
 #include <libinac-ce/string.h>
+#include <libinac-ce/list.h>
 
 
 #define INA_UNUSED(x) (void)(x)
